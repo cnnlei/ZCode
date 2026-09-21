@@ -1,0 +1,53 @@
+name: Publish ZCode Windows Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-windows-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download successful Windows production artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ZCode-Windows-x64-production
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 35555003579
+
+      - name: Verify release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lah release-assets
+          test -f "release-assets/ZCode-3.14.0-win-x64.exe"
+          test -f "release-assets/ZCode-3.14.0-win-x64.exe.blockmap"
+          test -f "release-assets/latest.yml"
+          test -f "release-assets/SHA256SUMS.txt"
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v3.14.0-windows"
+          TITLE="ZCode 3.14.0 Windows x64"
+          NOTES="Windows x64 production build of ZCode 3.14.0. Includes the NSIS installer, updater metadata, blockmap, and SHA256 checksums."
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "release-assets/ZCode-3.14.0-win-x64.exe" "release-assets/ZCode-3.14.0-win-x64.exe.blockmap" "release-assets/latest.yml" "release-assets/SHA256SUMS.txt" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "release-assets/ZCode-3.14.0-win-x64.exe" "release-assets/ZCode-3.14.0-win-x64.exe.blockmap" "release-assets/latest.yml" "release-assets/SHA256SUMS.txt" --target main --title "$TITLE" --notes "$NOTES" --repo "$GITHUB_REPOSITORY"
+          fi
