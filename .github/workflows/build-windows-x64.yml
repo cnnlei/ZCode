@@ -18,6 +18,8 @@ jobs:
     env:
       CI: "true"
       HUSKY: "0"
+      ZCODE_ENV: "production"
+      ZCODE_PREVIEW_IDENTITY: "0"
       ZCODE_SKIP_REMOTE_ASSETS: "1"
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
@@ -77,7 +79,7 @@ jobs:
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: ZCode-Windows-x64
+          name: ZCode-Windows-x64-production
           path: |
             packages/desktop/dist/*.exe
             packages/desktop/dist/*.blockmap
