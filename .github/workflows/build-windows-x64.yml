@@ -1,0 +1,88 @@
+name: Build ZCode Windows x64
+
+on:
+  push:
+    branches:
+      - build-windows-x64
+    paths:
+      - .github/workflows/build-windows-x64.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      CI: "true"
+      HUSKY: "0"
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Windows x64 installer
+        shell: pwsh
+        run: pnpm bundle:desktop -- --os win --arch x64
+
+      - name: Show artifacts
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path packages/desktop/dist) {
+            Get-ChildItem packages/desktop/dist -Recurse -File |
+              Select-Object FullName, Length, LastWriteTime |
+              Format-Table -AutoSize
+          } else {
+            Write-Host "packages/desktop/dist does not exist"
+          }
+
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem packages/desktop/dist -File | Where-Object {
+            $_.Extension -in @('.exe', '.blockmap', '.yml')
+          }
+          if (-not $files) { throw "No Windows build artifacts found" }
+          $lines = foreach ($f in $files) {
+            $h = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower()
+            "$h  $($f.Name)"
+          }
+          $lines | Set-Content -Encoding ascii packages/desktop/dist/SHA256SUMS.txt
+          Get-Content packages/desktop/dist/SHA256SUMS.txt
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZCode-Windows-x64
+          path: |
+            packages/desktop/dist/*.exe
+            packages/desktop/dist/*.blockmap
+            packages/desktop/dist/*.yml
+            packages/desktop/dist/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
